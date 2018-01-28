@@ -11,6 +11,7 @@
 
 #include "detail/common.h"
 #include "buffer_info.h"
+#include <iostream>
 #include <utility>
 #include <type_traits>
 
@@ -1299,6 +1300,91 @@ inline iterator iter(handle obj) {
     return reinterpret_steal<iterator>(result);
 }
 /// @} python_builtins
+
+/// Wrapper to permit lifetime of a Python instance which is derived from a C++
+/// pybind type to be managed by C++. Useful when adding virtual classes to
+/// containers, where Python instance being added may be collected by Python
+/// gc / refcounting.
+/// @note Do NOT use the methods in this class.
+template <typename Base>
+class wrapper : public Base {
+ public:
+  using Base::Base;
+
+  virtual ~wrapper() {
+      delete_py_if_in_cpp();
+  }
+
+  // To be used by the holder casters, by means of `wrapper_interface<>`.
+  // TODO(eric.cousineau): Make this private to ensure contract?
+  void use_cpp_lifetime(object&& patient, detail::HolderTypeId holder_type_id) {
+      if (lives_in_cpp()) {
+          throw std::runtime_error("Instance already lives in C++");
+      }
+      holder_type_id_ = holder_type_id;
+      patient_ = std::move(patient);
+      // @note It would be nice to put `revive_python3` here, but this is called by
+      // `PyObject_CallFinalizer`, which will end up reversing its effect anyways.
+  }
+
+  /// To be used by `move_only_holder_caster`.
+  object release_cpp_lifetime() {
+      if (!lives_in_cpp()) {
+          throw std::runtime_error("Instance does not live in C++");
+      }
+      revive_python3();
+      // Remove existing reference.
+      object tmp = std::move(patient_);
+      assert(!patient_);
+      return tmp;
+  }
+
+ protected:
+    // TODO(eric.cousineau): Verify this with an example workflow.
+  void delete_py_if_in_cpp() {
+      if (lives_in_cpp()) {
+          // Ensure that we still are the unique one, such that the Python classes
+          // destructor will be called.
+#ifdef PYBIND11_WARN_DANGLING_UNIQUE_PYREF
+          if (holder_type_id_ == detail::HolderTypeId::UniquePtr) {
+              if (patient_.ref_count() != 1) {
+                  // TODO(eric.cousineau): Add Python class name
+                  std::string class_name = patient_.get_type().str();
+                  std::cerr
+                      << "WARNING(pybind11): When destroying Python subclass (" << class_name << "), "
+                      << "of a pybind11 class using a unique_ptr holder in C++, "
+                      << "ref_count == " << patient_.ref_count() << " != 1, which may cause undefined behavior." << std::endl
+                      << "  Please consider reviewing your code to trim existing references, or use a move-compatible container." << std::endl;
+              }
+          }
+#endif  // PYBIND11_WARN_DANGLING_UNIQUE_HOLDER
+          // Release object.
+          release_cpp_lifetime();
+      }
+  }
+
+  // Python3 unfortunately will not implicitly call `__del__` multiple times,
+  // even if the object is resurrected. This is a dirty workaround.
+  // @see https://bugs.python.org/issue32377
+  inline void revive_python3() {
+#if PY_VERSION_HEX >= 0x03000000
+      // Reverse single-finalization constraint in Python3.
+      if (_PyGC_FINALIZED(patient_.ptr())) {
+        _PyGC_SET_FINALIZED(patient_.ptr(), 0);
+      }
+#endif  // PY_VERSION_HEX >= 0x03000000
+  }
+
+ private:
+  inline bool lives_in_cpp() const {
+      // NOTE: This is *false* if, for whatever reason, the wrapper class is
+      // constructed in C++... Meh. Not gonna worry about that situation.
+      return static_cast<bool>(patient_);
+  }
+
+  object patient_;
+  detail::HolderTypeId holder_type_id_{detail::HolderTypeId::Unknown};
+};
 
 NAMESPACE_BEGIN(detail)
 template <typename D> iterator object_api<D>::begin() const { return iter(derived()); }
