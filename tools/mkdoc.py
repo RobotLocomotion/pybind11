@@ -267,7 +267,7 @@ if __name__ == '__main__':
 
     for item in sys.argv[1:]:
         if item == '-quiet':
-            quiet = True        
+            quiet = True
         elif item.startswith('-std='):
             std = item
         elif item.startswith('-'):
@@ -284,23 +284,23 @@ if __name__ == '__main__':
 
     print('''#pragma once
 
-// GENERATED FILE DO NOT EDIT    
+// GENERATED FILE DO NOT EDIT
 // This file contains docstrings for the Python bindings that were
 // automatically extracted by mkdoc.py from pybind11.
 
 #define __EXPAND(x)                                      x
 #define __COUNT(_1, _2, _3, _4, _5, _6, _7, COUNT, ...)  COUNT
-#define __VA_SIZE(...)                                   __EXPAND(__COUNT(__VA_ARGS__, 7, 6, 5, 4, 3, 2, 1))
+#define __VA_SIZE(...)                                   __EXPAND(__COUNT(__VA_ARGS__, 7, 6, 5, 4, 3, 2, 1))  // NOLINT(whitespace/line_length)
 #define __CAT1(a, b)                                     a ## b
 #define __CAT2(a, b)                                     __CAT1(a, b)
 #define __DOC1(n1)                                       __doc_##n1
 #define __DOC2(n1, n2)                                   __doc_##n1##_##n2
-#define __DOC3(n1, n2, n3)                               __doc_##n1##_##n2##_##n3
-#define __DOC4(n1, n2, n3, n4)                           __doc_##n1##_##n2##_##n3##_##n4
-#define __DOC5(n1, n2, n3, n4, n5)                       __doc_##n1##_##n2##_##n3##_##n4##_##n5
-#define __DOC6(n1, n2, n3, n4, n5, n6)                   __doc_##n1##_##n2##_##n3##_##n4##_##n5##_##n6
-#define __DOC7(n1, n2, n3, n4, n5, n6, n7)               __doc_##n1##_##n2##_##n3##_##n4##_##n5##_##n6##_##n7
-#define DOC(...)                                         __EXPAND(__EXPAND(__CAT2(__DOC, __VA_SIZE(__VA_ARGS__)))(__VA_ARGS__))
+#define __DOC3(n1, n2, n3)                               __doc_##n1##_##n2##_##n3  // NOLINT(whitespace/line_length)
+#define __DOC4(n1, n2, n3, n4)                           __doc_##n1##_##n2##_##n3##_##n4  // NOLINT(whitespace/line_length)
+#define __DOC5(n1, n2, n3, n4, n5)                       __doc_##n1##_##n2##_##n3##_##n4##_##n5  // NOLINT(whitespace/line_length)
+#define __DOC6(n1, n2, n3, n4, n5, n6)                   __doc_##n1##_##n2##_##n3##_##n4##_##n5##_##n6  // NOLINT(whitespace/line_length)
+#define __DOC7(n1, n2, n3, n4, n5, n6, n7)               __doc_##n1##_##n2##_##n3##_##n4##_##n5##_##n6##_##n7  // NOLINT(whitespace/line_length)
+#define DOC(...)                                         __EXPAND(__EXPAND(__CAT2(__DOC, __VA_SIZE(__VA_ARGS__)))(__VA_ARGS__))  // NOLINT(whitespace/line_length)
 
 #if defined(__GNUG__)
 #pragma GCC diagnostic push
@@ -327,7 +327,8 @@ if __name__ == '__main__':
         else:
             name_prev = name
             name_ctr = 1
-        print('\nstatic const char *%s =%sR"doc(%s)doc";' %
+        print('\n// NOLINTNEXTLINE(whitespace/line_length)')
+        print('static const char *%s =%sR"doc(%s)doc";' %
               (name, '\n' if '\n' in comment else ' ', comment))
 
     print('''
