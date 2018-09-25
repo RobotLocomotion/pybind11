@@ -302,8 +302,9 @@ if __name__ == '__main__':
 #define __DOC7(n1, n2, n3, n4, n5, n6, n7)               __doc_##n1##_##n2##_##n3##_##n4##_##n5##_##n6##_##n7
 #define DOC(...)                                         __EXPAND(__EXPAND(__CAT2(__DOC, __VA_SIZE(__VA_ARGS__)))(__VA_ARGS__))
 
-#if defined(__GNUG__)
+#if defined(__GNUC__) || defined(__GNUG__)
 #pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Werror=unused-variable"
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #endif
 ''')
@@ -331,7 +332,7 @@ if __name__ == '__main__':
               (name, '\n' if '\n' in comment else ' ', comment))
 
     print('''
-#if defined(__GNUG__)
+#if defined(__GNUC__) || defined(__GNUG__)
 #pragma GCC diagnostic pop
 #endif
 ''')
