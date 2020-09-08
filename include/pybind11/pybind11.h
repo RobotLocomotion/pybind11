@@ -190,11 +190,13 @@ protected:
         process_attributes<Extra...>::init(extra..., rec);
 
         {
-            constexpr bool has_kwonly_args = any_of<std::is_same<kwonly, Extra>...>::value,
+            constexpr bool has_kw_only_args = any_of<std::is_same<kw_only, Extra>...>::value,
+                           has_pos_only_args = any_of<std::is_same<pos_only, Extra>...>::value,
                            has_args = any_of<std::is_same<args, Args>...>::value,
                            has_arg_annotations = any_of<is_keyword<Extra>...>::value;
-            static_assert(has_arg_annotations || !has_kwonly_args, "py::kwonly requires the use of argument annotations");
-            static_assert(!(has_args && has_kwonly_args), "py::kwonly cannot be combined with a py::args argument");
+            static_assert(has_arg_annotations || !has_kw_only_args, "py::kw_only requires the use of argument annotations");
+            static_assert(has_arg_annotations || !has_pos_only_args, "py::pos_only requires the use of argument annotations (for docstrings and aligning the annotations to the argument)");
+            static_assert(!(has_args && has_kw_only_args), "py::kw_only cannot be combined with a py::args argument");
         }
 
         /* Generate a readable signature describing the function's arguments and return value types */
@@ -260,7 +262,10 @@ protected:
                 // Write arg name for everything except *args and **kwargs.
                 if (*(pc + 1) == '*')
                     continue;
-
+                // Separator for keyword-only arguments, placed before the kw
+                // arguments start
+                if (rec->nargs_kw_only > 0 && arg_index + rec->nargs_kw_only == args)
+                    signature += "*, ";
                 if (arg_index < rec->args.size() && rec->args[arg_index].name) {
                     signature += rec->args[arg_index].name;
                 } else if (arg_index == 0 && rec->is_method) {
@@ -275,6 +280,10 @@ protected:
                     signature += " = ";
                     signature += rec->args[arg_index].descr;
                 }
+                // Separator for positional-only arguments (placed after the
+                // argument, rather than before like *
+                if (rec->nargs_pos_only > 0 && (arg_index + 1) == rec->nargs_pos_only)
+                    signature += ", /";
                 arg_index++;
             } else if (c == '%') {
                 const std::type_info *t = types[type_index++];
@@ -300,6 +309,7 @@ protected:
                 signature += c;
             }
         }
+
         if (arg_index != args || types[type_index] != nullptr)
             pybind11_fail("Internal error while parsing type signature (2)");
 
@@ -515,7 +525,7 @@ protected:
                 size_t num_args = func.nargs;    // Number of positional arguments that we need
                 if (func.has_args) --num_args;   // (but don't count py::args
                 if (func.has_kwargs) --num_args; //  or py::kwargs)
-                size_t pos_args = num_args - func.nargs_kwonly;
+                size_t pos_args = num_args - func.nargs_kw_only;
 
                 if (!func.has_args && n_args_in > pos_args)
                     continue; // Too many positional arguments for this overload
@@ -563,6 +573,26 @@ protected:
 
                 // We'll need to copy this if we steal some kwargs for defaults
                 dict kwargs = reinterpret_borrow<dict>(kwargs_in);
+
+                // 1.5. Fill in any missing pos_only args from defaults if they exist
+                if (args_copied < func.nargs_pos_only) {
+                    for (; args_copied < func.nargs_pos_only; ++args_copied) {
+                        const auto &arg = func.args[args_copied];
+                        handle value;
+
+                        if (arg.value) {
+                            value = arg.value;
+                        }
+                        if (value) {
+                            call.args.push_back(value);
+                            call.args_convert.push_back(arg.convert);
+                        } else
+                            break;
+                    }
+
+                    if (args_copied < func.nargs_pos_only)
+                        continue; // Not enough defaults to fill the positional arguments
+                }
 
                 // 2. Check kwargs and, failing that, defaults that may help complete the list
                 if (args_copied < num_args) {
@@ -779,7 +809,11 @@ protected:
             for (size_t ti = overloads->is_constructor ? 1 : 0; ti < args_.size(); ++ti) {
                 if (!some_args) some_args = true;
                 else msg += ", ";
-                msg += pybind11::repr(args_[ti]);
+                try {
+                    msg += pybind11::repr(args_[ti]);
+                } catch (const error_already_set&) {
+                    msg += "<repr raised Error>";
+                }
             }
             if (kwargs_in) {
                 auto kwargs = reinterpret_borrow<dict>(kwargs_in);
@@ -790,7 +824,12 @@ protected:
                     for (auto kwarg : kwargs) {
                         if (first) first = false;
                         else msg += ", ";
-                        msg += pybind11::str("{}={!r}").format(kwarg.first, kwarg.second);
+                        msg += pybind11::str("{}=").format(kwarg.first);
+                        try {
+                            msg += pybind11::repr(kwarg.second);
+                        } catch (const error_already_set&) {
+                            msg += "<repr raised Error>";
+                        }
                     }
                 }
             }

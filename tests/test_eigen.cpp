@@ -109,8 +109,6 @@ TEST_SUBMODULE(eigen, m) {
     using SparseMatrixR = Eigen::SparseMatrix<float, Eigen::RowMajor>;
     using SparseMatrixC = Eigen::SparseMatrix<float>;
 
-    m.attr("have_eigen") = true;
-
     // various tests
     m.def("double_col", [](const Eigen::VectorXf &x) -> Eigen::VectorXf { return 2.0f * x; });
     m.def("double_adscalar_col", [](const VectorXADScalar &x) -> VectorXADScalar { return 2.0f * x; });
