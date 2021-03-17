@@ -789,6 +789,10 @@ struct move_only_holder_caster : type_caster_base<type> {
         auto *ptr = holder_helper<holder_type>::get(src);
         return type_caster_base<type>::cast_holder(ptr, holder_erased(std::addressof(src)));
     }
+    static handle cast(const holder_type& src, return_value_policy policy, handle parent) {
+        const auto *ptr = holder_helper<holder_type>::get(src);
+        return type_caster_base<type>::cast_holder(ptr, holder_erased(std::addressof(src)));
+    }
 
   // Disable these?
 //  explicit operator type*() { return this->value; }
